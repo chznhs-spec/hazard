@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hazardní Losování</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #e7ecff;
+            color: #fff;
+            margin: 0;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        #reader {
+            width: 100%;
+            border: 2px solid #ffd700;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+            background: #000;
+        }
+
+        .controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-switch {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+        }
+
+        .btn-submit {
+            background: #ffd700;
+            color: #000;
+        }
+
+        .manual-input input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            text-align: center;
+            background: #1a1a1a;
+            color: #fff;
+            outline: none;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .manual-input input:focus {
+            border-color: #ffd700;
+        }
+
+        #result {
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            display: none;
+            line-height: 1.4;
+        }
+
+        .mf-warning {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 500px;
+            background: #e0e0e0;
+            color: #000;
+            padding: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #000;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Logo -->
+        <img src="logohazard.png" alt="Hazard Logo" class="logo">
+
+        <!-- Skener QR kódů -->
+        <div id="reader"></div>
+
+        <!-- Ovládání -->
+        <div class="controls">
+            <button class="btn btn-switch" onclick="switchCamera()">🔄 Přepnout kameru</button>
+            
+            <div class="manual-input">
+                <input type="text" id="code-input" placeholder="Nebo zadej kód ručně">
+                <button class="btn btn-submit" id="submit-btn" onclick="submitManualCode()">Odeslat kód</button>
+            </div>
+        </div>
+
+        <!-- Výsledek -->
+        <div id="result"></div>
+    </div>
+
+    <!-- Varování MF -->
+    <div class="mf-warning">
+        MINISTERSTVO FINANCÍ VARUJE:<br>
+        ÚČASTÍ NA HAZARDNÍ HŘE MŮŽE VZNIKNOUT ZÁVISLOST!<br>
+        HRAJTE ZODPOVĚDNĚ. POUZE 18+.
+    </div>
+
+    <script>
+        // VLOŽTE VAŠI URL APPS SCRIPTU ZDE:
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygs8TS1fcsX9SB_HMXz7Jrixq4y2lVfZVIsXHHCBtVx1r7MUGO135ll85V8_fD36ZEtQ/exec';
+
+        let html5QrCode;
+        let currentCameraIndex = 0;
+        let cameras = [];
+
+        async function initScanner() {
+            html5QrCode = new Html5Qrcode("reader");
+            
+            try {
+                cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length > 0) {
+                    startScanning(cameras[currentCameraIndex].id);
+                }
+            } catch (err) {
+                console.error("Chyba při přístupu ke kameře:", err);
+            }
+        }
+
+        function startScanning(cameraId) {
+            const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+            html5QrCode.start(cameraId, config, onScanSuccess)
+            .catch(err => console.error("Nelze spustit kameru:", err));
+        }
+
+        function switchCamera() {
+            if (cameras.length > 1) {
+                html5QrCode.stop().then(() => {
+                    currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+                    startScanning(cameras[currentCameraIndex].id);
+                });
+            } else {
+                alert("Na tomto zařízení byla nalezena pouze jedna kamera.");
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            html5QrCode.stop();
+            processCode(decodedText);
+        }
+
+        function submitManualCode() {
+            const inputVal = document.getElementById("code-input").value.trim();
+            if (inputVal !== "") {
+                processCode(inputVal);
+            }
+        }
+
+        async function processCode(code) {
+    const resultDiv = document.getElementById("result");
+    const submitBtn = document.getElementById("submit-btn");
+
+    submitBtn.disabled = true;
+    resultDiv.style.display = "block";
+    resultDiv.style.backgroundColor = "#ffd700";
+    resultDiv.style.color = "#000";
+    resultDiv.innerText = "⏳ Ověřuji kód: " + code + "...";
+
+    try {
+        // Posíláme kód přes GET požadavek (vyhne se CORS omezením)
+        const requestUrl = SCRIPT_URL + "?kod=" + encodeURIComponent(code);
+        const response = await fetch(requestUrl);
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const vyhraText = String(data.vyhra || '').trim();
+            const vyhraLower = vyhraText.toLowerCase();
+
+            // Seznam slov, která znamenají prohru
+            const isLoss = vyhraLower === '' || 
+                           vyhraLower.includes("nic") || 
+                           vyhraLower.includes("bohužel") || 
+                           vyhraLower.includes("smůla") ||
+                           vyhraLower.includes("nevyhrál");
+
+            if (isLoss) {
+                // Zobrazení prohry
+                resultDiv.style.backgroundColor = "#222";
+                resultDiv.style.color = "#ff4d4d";
+                resultDiv.style.border = "2px solid #ff4d4d";
+                resultDiv.style.boxShadow = "none";
+                resultDiv.innerHTML = `
+                    <div style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">BOHUŽEL NIC!</div>
+                    <div style="font-size: 15px; color: #ccc;">${vyhraText || "Tento los nevyhrává."}</div>
+                `;
+            } else {
+                // Zobrazení výhry
+                resultDiv.style.backgroundColor = "#28a745";
+                resultDiv.style.color = "#fff";
+                resultDiv.style.border = "3px solid #ffd700";
+                resultDiv.style.boxShadow = "0 0 15px #28a745";
+                resultDiv.innerHTML = `
+                    <div style="font-size: 22px; font-weight: bold; margin-bottom: 8px;">🎉 GRATULUJEME! 🎉</div>
+                    <div style="font-size: 15px; margin-bottom: 10px;">Vyhráváš:</div>
+                    <div style="font-size: 20px; background: #fff; color: #000; padding: 10px; border-radius: 6px; font-weight: bold; margin-bottom: 10px;">
+                        ${vyhraText}
+                    </div>
+                    <div style="font-size: 12px; opacity: 0.9;">
+                        Ukažte kód nejbližším reprezentantům VLČR.<br> 
+                        <em>Kód losu: ${code} (Ověřeno)</em>
+                    </div>
+                `;
+            }
+        }
+    } catch (err) {
+        console.error("Chyba při komunikaci:", err);
+        resultDiv.style.backgroundColor = "#dc3545";
+        resultDiv.style.color = "#fff";
+        resultDiv.innerText = "Nepodařilo se připojit k serveru.";
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
+
+        window.addEventListener("load", initScanner);
+    </script>
+</body>
+</html>
